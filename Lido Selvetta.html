@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestione Stabilimento Balneare</title>
+<style>
+  :root {
+    --blu: #0077b6;
+    --azzurro: #90e0ef;
+    --sabbia: #f4e3c1;
+    --verde: #2ecc71;
+    --rosso: #e74c3c;
+    --grigio: #7f8c8d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: linear-gradient(180deg, #eaf6ff 0%, #f4e3c1 100%);
+    color: #2c3e50;
+  }
+  header {
+    background: var(--blu);
+    color: white;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  header h1 { margin: 0; font-size: 1.3rem; }
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .toolbar label { font-size: 0.85rem; }
+  input, select, button {
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    font-size: 0.9rem;
+  }
+  button {
+    cursor: pointer;
+    background: var(--blu);
+    color: white;
+    border: none;
+    transition: background 0.2s;
+  }
+  button:hover { background: #005f8c; }
+  button.secondary { background: var(--grigio); }
+  button.secondary:hover { background: #616a6b; }
+  button.danger { background: var(--rosso); }
+  button.danger:hover { background: #c0392b; }
+  button.edit-active { background: #f39c12; }
+
+  main {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 20px;
+  }
+
+  .mappa-container {
+    flex: 2;
+    min-width: 320px;
+  }
+  .mappa-hint {
+    font-size: 0.85rem;
+    color: #555;
+    margin-bottom: 8px;
+  }
+  #mappa {
+    position: relative;
+    width: 100%;
+    height: 500px;
+    background: repeating-linear-gradient(45deg, var(--sabbia), var(--sabbia) 20px, #f7ecd6 20px, #f7ecd6 40px);
+    border: 3px solid var(--blu);
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: default;
+  }
+  #mappa.edit-mode { cursor: copy; }
+  #mappa::before {
+    content: "🌊 MARE 🌊";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    background: var(--azzurro);
+    text-align: center;
+    font-weight: bold;
+    padding: 6px;
+    color: #023e8a;
+    letter-spacing: 2px;
+  }
+  .postazione {
+    position: absolute;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    font-size: 0.65rem;
+    font-weight: bold;
+    color: white;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    user-select: none;
+    transform: translate(-50%, -50%);
+  }
+  .postazione.libera { background: var(--verde); }
+  .postazione.occupata { background: var(--rosso); }
+  .postazione .icona { font-size: 1.1rem; }
+
+  .pannello {
+    flex: 1;
+    min-width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .card {
+    background: white;
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  .card h2 {
+    margin-top: 0;
+    font-size: 1.05rem;
+    color: var(--blu);
+  }
+  .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 10px;
+  }
+  .form-row label { font-size: 0.85rem; font-weight: 600; }
+  .riepilogo-costi {
+    background: #f0f8ff;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+  .riepilogo-costi strong { color: var(--blu); }
+  .lista-prenotazioni {
+    max-height: 320px;
+    overflow-y: auto;
+  }
+  .prenotazione-item {
+    border-bottom: 1px solid #eee;
+    padding: 8px 0;
+    font-size: 0.85rem;
+  }
+  .prenotazione-item .stato {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    color: white;
+    margin-left: 6px;
+  }
+  .stato.pagato { background: var(--verde); }
+  .stato.attesa { background: #f39c12; }
+  .actions-inline { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .actions-inline button { font-size: 0.75rem; padding: 4px 8px; }
+
+  .incasso-box {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    padding: 6px 0;
+  }
+
+  #overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  #overlay.attivo { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    width: 90%;
+    max-width: 400px;
+  }
+  .modal h3 { margin-top: 0; color: var(--blu); }
+  .close-modal { float: right; cursor: pointer; font-weight: bold; color: var(--grigio); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏖️ Stabilimento Balneare</h1>
+  <div class="toolbar">
+    <label>Data:
+      <input type="date" id="dataSelezionata">
+    </label>
+    <button id="btnEditMode" class="secondary">✏️ Modifica mappa</button>
+  </div>
+</header>
+
+<main>
+  <div class="mappa-container">
+    <p class="mappa-hint" id="mappaHint">Clicca su una postazione verde (libera) per prenotarla. Attiva "Modifica mappa" per aggiungere, spostare o eliminare (doppio click) le postazioni.</p>
+    <div id="mappa"></div>
+  </div>
+
+  <div class="pannello">
+    <div class="card">
+      <h2>💰 Listino prezzi</h2>
+      <div class="riepilogo-costi">
+        Lettino: <strong>10 €</strong><br>
+        Ombrellone: <strong>10 €</strong><br>
+        Acconto prenotazione: <strong>5 €</strong> (da pagare subito)<br>
+        Saldo alla consegna: calcolato in base ai lettini scelti
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📋 Incassi del giorno</h2>
+      <div id="incassiGiorno"></div>
+    </div>
+
+    <div class="card">
+      <h2>📖 Prenotazioni del giorno</h2>
+      <div class="lista-prenotazioni" id="listaPrenotazioni"></div>
+    </div>
+  </div>
+</main>
+
+<div id="overlay">
+  <div class="modal" id="modalContenuto"></div>
+</div>
+
+<script>
+// ================== STATO E PERSISTENZA ==================
+const PREZZO_LETTINO = 10;
+const PREZZO_OMBRELLONE = 10;
+const ACCONTO = 5;
+
+let postazioni = JSON.parse(localStorage.getItem('sb_postazioni')) || [];
+let prenotazioni = JSON.parse(localStorage.getItem('sb_prenotazioni')) || [];
+let editMode = false;
+let dragId = null;
+
+function salva() {
+  localStorage.setItem('sb_postazioni', JSON.stringify(postazioni));
+  localStorage.setItem('sb_prenotazioni', JSON.stringify(prenotazioni));
+}
+
+// Se non ci sono postazioni salvate, ne creiamo alcune di esempio
+if (postazioni.length === 0) {
+  let idc = 1;
+  for (let riga = 0; riga < 3; riga++) {
+    for (let col = 0; col < 6; col++) {
+      postazioni.push({
+        id: idc++,
+        x: 10 + col * 15,
+        y: 25 + riga * 25
+      });
+    }
+  }
+  salva();
+}
+
+// ================== ELEMENTI DOM ==================
+const mappaEl = document.getElementById('mappa');
+const dataInput = document.getElementById('dataSelezionata');
+const btnEditMode = document.getElementById('btnEditMode');
+const overlay = document.getElementById('overlay');
+const modalContenuto = document.getElementById('modalContenuto');
+const listaPrenotazioniEl = document.getElementById('listaPrenotazioni');
+const incassiGiornoEl = document.getElementById('incassiGiorno');
+const mappaHint = document.getElementById('mappaHint');
+
+// Data di default: oggi
+dataInput.value = new Date().toISOString().split('T')[0];
+
+// ================== FUNZIONI UTILI ==================
+function getPrenotazione(postazioneId, data) {
+  return prenotazioni.find(p => p.postazioneId === postazioneId && p.data === data);
+}
+
+function chiudiModal() {
+  overlay.classList.remove('attivo');
+  modalContenuto.innerHTML = '';
+}
+
+// ================== RENDER MAPPA ==================
+function renderMappa() {
+  mappaEl.innerHTML = '';
+  const data = dataInput.value;
+
+  postazioni.forEach(p => {
+    const prenotazione = getPrenotazione(p.id, data);
+    const div = document.createElement('div');
+    div.className = 'postazione ' + (prenotazione ? 'occupata' : 'libera');
+    div.style.left = p.x + '%';
+    div.style.top = p.y + '%';
+    div.innerHTML = `<span class="icona">⛱️</span><span>#${p.id}</span>`;
+
+    if (editMode) {
+      div.style.cursor = 'move';
+      div.addEventListener('mousedown', (e) => iniziaDrag(e, p.id));
+      div.addEventListener('touchstart', (e) => iniziaDrag(e, p.id), {passive:false});
+      div.addEventListener('dblclick', () => eliminaPostazione(p.id));
+    } else {
+      div.addEventListener('click', () => {
+        if (prenotazione) {
+          mostraDettaglioPrenotazione(prenotazione.id);
+        } else {
+          apriFormPrenotazione(p.id);
+        }
+      });
+    }
+
+    mappaEl.appendChild(div);
+  });
+}
+
+// ================== MODALITA' MODIFICA MAPPA ==================
+btnEditMode.addEventListener('click', () => {
+  editMode = !editMode;
+  mappaEl.classList.toggle('edit-mode', editMode);
+  btnEditMode.classList.toggle('edit-active', editMode);
+  btnEditMode.textContent = editMode ? '✅ Fine modifica' : '✏️ Modifica mappa';
+  mappaHint.textContent = editMode
+    ? 'Clicca su un punto libero della spiaggia per aggiungere un ombrellone. Trascina per spostare, doppio click per eliminare.'
+    : 'Clicca su una postazione verde (libera) per prenotarla. Attiva "Modifica mappa" per aggiungere, spostare o eliminare (doppio click) le postazioni.';
+  renderMappa();
+});
+
+mappaEl.addEventListener('click', (e) => {
+  if (!editMode) return;
+  if (e.target !== mappaEl) return; // evita di aggiungere cliccando su una postazione esistente
+  const rect = mappaEl.getBoundingClientRect();
+  const x = ((e.clientX - rect.left) / rect.width) * 100;
+  const y = ((e.clientY - rect.top) / rect.height) * 100;
+  const nuovoId = postazioni.length ? Math.max(...postazioni.map(p => p.id)) + 1 : 1;
+  postazioni.push({ id: nuovoId, x: Math.min(95, Math.max(5, x)), y: Math.min(95, Math.max(15, y)) });
+  salva();
+  renderMappa();
+});
+
+function iniziaDrag(e, id) {
+  e.preventDefault();
+  dragId = id;
+  document.addEventListener('mousemove', trascina);
+  document.addEventListener('mouseup', fineDrag);
+  document.addEventListener('touchmove', trascina, {passive:false});
+  document.addEventListener('touchend', fineDrag);
+}
+
+function trascina(e) {
+  if (dragId === null) return;
+  e.preventDefault();
+  const rect = mappaEl.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  let x = ((clientX - rect.left) / rect.width) * 100;
+  let y = ((clientY - rect.top) / rect.height) * 100;
+  x = Math.min(97, Math.max(3, x));
+  y = Math.min(97, Math.max(12, y));
+  const p = postazioni.find(p => p.id === dragId);
+  p.x = x; p.y = y;
+  renderMappa();
+}
+
+function fineDrag() {
+  dragId = null;
+  salva();
+  document.removeEventListener('mousemove', trascina);
+  document.removeEventListener('mouseup', fineDrag);
+  document.removeEventListener('touchmove', trascina);
+  document.removeEventListener('touchend', fineDrag);
+}
+
+function eliminaPostazione(id) {
+  const haPrenotazioni = prenotazioni.some(p => p.postazioneId === id);
+  if (haPrenotazioni && !confirm('Questa postazione ha prenotazioni collegate. Eliminarla comunque?')) return;
+  postazioni = postazioni.filter(p => p.id !== id);
+  prenotazioni = prenotazioni.filter(p => p.postazioneId !== id);
+  salva();
+  renderMappa();
+  renderListaPrenotazioni();
+}
+
+// ================== FORM PRENOTAZIONE ==================
+function apriFormPrenotazione(postazioneId) {
+  const data = dataInput.value;
+  modalContenuto.innerHTML = `
+    <span class="close-modal" onclick="chiudiModal()">✕</span>
+    <h3>Prenota postazione #${postazioneId}</h3>
+    <div class="form-row">
+      <label>Nome cliente</label>
+      <input type="text" id="inputNome" placeholder="Es. Mario Rossi">
+    </div>
+    <div class="form-row">
+      <label>Telefono (facoltativo)</label>
+      <input type="tel" id="inputTelefono" placeholder="Es. 333 1234567">
+    </div>
+    <div class="form-row">
+      <label>Numero lettini</label>
+      <select id="inputLettini">
+        <option value="1">1 lettino</option>
+        <option value="2" selected>2 lettini</option>
+        <option value="3">3 lettini</option>
+        <option value="4">4 lettini</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label><input type="checkbox" id="inputOmbrellone" checked> Includi ombrellone</label>
+    </div>
+    <div class="riepilogo-costi" id="riepilogoCosti"></div>
+    <button onclick="confermaPrenotazione(${postazioneId})">Conferma prenotazione</button>
+  `;
+  overlay.classList.add('attivo');
+  document.getElementById('inputLettini').addEventListener('change', aggiornaRiepilogo);
+  document.getElementById('inputOmbrellone').addEventListener('change', aggiornaRiepilogo);
+  aggiornaRiepilogo();
+}
+
+function calcolaTotale() {
+  const lettini = parseInt(document.getElementById('inputLettini').value);
+  const ombrellone = document.getElementById('inputOmbrellone').checked;
+  const totale = lettini * PREZZO_LETTINO + (ombrellone ? PREZZO_OMBRELLONE : 0);
+  const saldo = totale - ACCONTO;
+  return { lettini, ombrellone, totale, saldo };
+}
+
+function aggiornaRiepilogo() {
+  const { lettini, ombrellone, totale, saldo } = calcolaTotale();
+  document.getElementById('riepilogoCosti').innerHTML = `
+    ${lettini} lettino/i: <strong>${lettini * PREZZO_LETTINO} €</strong><br>
+    Ombrellone: <strong>${ombrellone ? PREZZO_OMBRELLONE + ' €' : 'non incluso'}</strong><br>
+    <strong>Totale: ${totale} €</strong><br>
+    Acconto da pagare ora: <strong>${ACCONTO} €</strong><br>
+    Saldo alla consegna: <strong>${saldo} €</strong>
+  `;
+}
+
+function confermaPrenotazione(postazioneId) {
+  const nome = document.getElementById('inputNome').value.trim();
+  if (!nome) { alert('Inserisci il nome del cliente.'); return; }
+  const telefono = document.getElementById('inputTelefono').value.trim();
+  const { lettini, ombrellone, totale, saldo } = calcolaTotale();
+
+  const nuovaPrenotazione = {
+    id: Date.now(),
+    postazioneId,
+    data: dataInput.value,
+    cliente: nome,
+    telefono,
+    lettini,
+    ombrellone,
+    totale,
+    acconto: ACCONTO,
+    saldo,
+    accontoPagato: false,
+    saldoPagato: false
+  };
+  prenotazioni.push(nuovaPrenotazione);
+  salva();
+  chiudiModal();
+  renderMappa();
+  renderListaPrenotazioni();
+}
+
+// ================== DETTAGLIO / GESTIONE PRENOTAZIONE ==================
+function mostraDettaglioPrenotazione(id) {
+  const p = prenotazioni.find(x => x.id === id);
+  if (!p) return;
+  modalContenuto.innerHTML = `
+    <span class="close-modal" onclick="chiudiModal()">✕</span>
+    <h3>Postazione #${p.postazioneId} — ${p.data}</h3>
+    <p><strong>Cliente:</strong> ${p.cliente}${p.telefono ? ' — ' + p.telefono : ''}</p>
+    <p><strong>Lettini:</strong> ${p.lettini} &nbsp; <strong>Ombrellone:</strong> ${p.ombrellone ? 'Sì' : 'No'}</p>
+    <div class="riepilogo-costi">
+      Totale: <strong>${p.totale} €</strong><br>
+      Acconto (5 €): <strong>${p.accontoPagato ? 'Pagato ✅' : 'Da incassare'}</strong><br>
+      Saldo (${p.saldo} €): <strong>${p.saldoPagato ? 'Pagato ✅' : 'Da incassare'}</strong>
+    </div>
+    <div class="actions-inline">
+      ${!p.accontoPagato ? `<button onclick="segnaPagamento(${p.id}, 'acconto')">Incassa acconto</button>` : ''}
+      ${!p.saldoPagato ? `<button onclick="segnaPagamento(${p.id}, 'saldo')">Incassa saldo</button>` : ''}
+      <button class="danger" onclick="eliminaPrenotazione(${p.id})">Elimina prenotazione</button>
+    </div>
+  `;
+  overlay.classList.add('attivo');
+}
+
+function segnaPagamento(id, tipo) {
+  const p = prenotazioni.find(x => x.id === id);
+  if (!p) return;
+  if (tipo === 'acconto') p.accontoPagato = true;
+  if (tipo === 'saldo') p.saldoPagato = true;
+  salva();
+  mostraDettaglioPrenotazione(id);
+  renderListaPrenotazioni();
+}
+
+function eliminaPrenotazione(id) {
+  if (!confirm('Eliminare questa prenotazione?')) return;
+  prenotazioni = prenotazioni.filter(p => p.id !== id);
+  salva();
+  chiudiModal();
+  renderMappa();
+  renderListaPrenotazioni();
+}
+
+// ================== LISTA E INCASSI DEL GIORNO ==================
+function renderListaPrenotazioni() {
+  const data = dataInput.value;
+  const delGiorno = prenotazioni.filter(p => p.data === data);
+
+  if (delGiorno.length === 0) {
+    listaPrenotazioniEl.innerHTML = '<p style="color:#999;font-size:0.85rem;">Nessuna prenotazione per questa data.</p>';
+  } else {
+    listaPrenotazioniEl.innerHTML = delGiorno.map(p => `
+      <div class="prenotazione-item">
+        <strong>#${p.postazioneId}</strong> — ${p.cliente}
+        <span class="stato ${p.accontoPagato ? 'pagato' : 'attesa'}">Acconto ${p.accontoPagato ? 'OK' : 'attesa'}</span>
+        <span class="stato ${p.saldoPagato ? 'pagato' : 'attesa'}">Saldo ${p.saldoPagato ? 'OK' : 'attesa'}</span>
+        <div>Totale: ${p.totale} € — ${p.lettini} lettini${p.ombrellone ? ' + ombrellone' : ''}</div>
+      </div>
+    `).join('');
+  }
+
+  const totaleIncassato = delGiorno.reduce((sum, p) => sum + (p.accontoPagato ? p.acconto : 0) + (p.saldoPagato ? p.saldo : 0), 0);
+  const totalePrevisto = delGiorno.reduce((sum, p) => sum + p.totale, 0);
+  incassiGiornoEl.innerHTML = `
+    <div class="incasso-box"><span>Prenotazioni:</span><strong>${delGiorno.length}</strong></div>
+    <div class="incasso-box"><span>Incassato:</span><strong>${totaleIncassato} €</strong></div>
+    <div class="incasso-box"><span>Previsto totale:</span><strong>${totalePrevisto} €</strong></div>
+  `;
+}
+
+// ================== EVENTI GLOBALI ==================
+dataInput.addEventListener('change', () => {
+  renderMappa();
+  renderListaPrenotazioni();
+});
+overlay.addEventListener('click', (e) => { if (e.target === overlay) chiudiModal(); });
+
+// ================== AVVIO ==================
+renderMappa();
+renderListaPrenotazioni();
+</script>
+</body>
+</html>
