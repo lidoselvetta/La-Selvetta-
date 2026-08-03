@@ -740,3 +740,27 @@ renderListaPrenotazioni();
 </script>
 </body>
 </html>
+// Ascolta i cambiamenti nel database Firebase in tempo reale
+database.ref('ombrelloni').on('value', (snapshot) => {
+  const dati = snapshot.val();
+  
+  if (dati) {
+    Object.keys(dati).forEach(ombrelloneId => {
+      const elemento = document.getElementById(ombrelloneId);
+      
+      if (elemento) {
+        // Se nel database risulta occupato
+        if (dati[ombrelloneId].stato === 'occupato') {
+          elemento.style.backgroundColor = 'gray'; // Diventa grigio per gli altri utenti
+          elemento.style.cursor = 'not-allowed';
+          elemento.dataset.occupato = "true";
+        } else {
+          // Se è libero
+          elemento.style.backgroundColor = 'green'; // Rimane/torna verde
+          elemento.style.cursor = 'pointer';
+          elemento.dataset.occupato = "false";
+        }
+      }
+    });
+  }
+});
